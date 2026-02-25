@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tail:*)",
+      "Bash(cd \"/Users/sherryfang/Documents/projects/tinyfish scraper agent/FrontRow\" && npx vite build 2>&1)",
+      "Bash(cd \"/Users/sherryfang/Documents/projects/tinyfish scraper agent/FrontRow\" && npm run dev 2>&1)",
+      "Bash(echo done:*)",
+      "Bash(curl:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(cd \"/Users/sherryfang/Documents/projects/tinyfish scraper agent/FrontRow\" && npm install 2>&1)",
+      "Bash(echo killed:*)",
+      "Bash(cd \"/Users/sherryfang/Documents/projects/tinyfish scraper agent/FrontRow\" && npm run dev:all 2>&1)"
+    ]
+  }
+}
