@@ -18,7 +18,8 @@
    - **Name**: `frontrow`（或任意）
    - **Region**: 选离用户近的（如 Oregon）
    - **Runtime**: **Node**
-   - **Build Command**: `npm install && npm run build`
+   - **Build Command**: `npm install --include=dev && npm run build`  
+     （必须安装 devDependencies，否则会报 `vite: not found`）
    - **Start Command**: `npm start`
    - **Instance Type**: 选 **Free**
 
@@ -57,7 +58,7 @@
 1. [railway.app](https://railway.app) 用 GitHub 登录
 2. **New Project** → **Deploy from GitHub repo** → 选 `FrontRow`
 3. 在服务 **Settings** 中设置：
-   - **Build Command**: `npm install && npm run build`
+   - **Build Command**: `npm install --include=dev && npm run build`
    - **Start Command**: `npm start`
    - **Root Directory**: 留空（仓库根目录）
 4. **Variables** 里添加与 Render 相同的环境变量（含 `VITE_API_BASE=` 留空）
@@ -100,3 +101,4 @@ NODE_ENV=production npm start
 - **冷启动慢**：Render 免费实例休眠后首次请求会慢，属正常。
 - **API 404**：确认 Build 时设置了 `VITE_API_BASE`（空字符串即可），且 Start 用的是 `npm start`（跑 `server/index.js`）。
 - **CORS 报错**：若前后端拆开部署，在后端设置 `APP_URL` 为前端域名，或临时允许你的前端 origin。
+- **`vite: not found` / Exit 127**：Build 时未安装 devDependencies。把 Build Command 改为 `npm install --include=dev && npm run build`，或在 Environment 里加 `NPM_CONFIG_PRODUCTION` = `false`。

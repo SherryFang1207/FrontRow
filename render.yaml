@@ -5,7 +5,8 @@ services:
     name: frontrow
     runtime: node
     region: oregon
-    buildCommand: npm install && npm run build
+    # Install devDependencies so vite is available for build (Render uses NODE_ENV=production by default)
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
