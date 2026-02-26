@@ -1,7 +1,12 @@
 import 'dotenv/config'
 import express from 'express'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import cors from 'cors'
 import { getArtistAvatar, isLastFmConfigured } from './lastfm.js'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const isProd = process.env.NODE_ENV === 'production'
 
 const app = express()
 
@@ -9,8 +14,11 @@ if (!isLastFmConfigured()) {
   console.warn('[proxy] WARNING: LASTFM_API_KEY not set — artist avatars will fall back to initials')
 }
 
-// Allow any localhost origin (dev)
-app.use(cors({ origin: /^http:\/\/localhost(:\d+)?$/ }))
+// CORS: localhost in dev, allow deploy origin or any in prod
+const corsOrigin = isProd
+  ? (process.env.APP_URL || true) // true = reflect request origin
+  : /^http:\/\/localhost(:\d+)?$/
+app.use(cors({ origin: corsOrigin }))
 app.use(express.json())
 
 const TINYFISH_API_KEY = process.env.TINYFISH_API_KEY || process.env.VITE_TINYFISH_API_KEY
@@ -121,6 +129,16 @@ app.post('/api/tinyfish', async (req, res) => {
     res.end()
   }
 })
+
+// Production: serve Vite build and SPA fallback
+if (isProd) {
+  const distPath = path.join(__dirname, '..', 'dist')
+  app.use(express.static(distPath))
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next()
+    res.sendFile(path.join(distPath, 'index.html'))
+  })
+}
 
 const PORT = process.env.PORT || 3001
 
