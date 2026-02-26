@@ -1,8 +1,18 @@
+import arianaGrandeImg from '../assets/artist_headshots/ariana_grande.png'
+import ladyGagaImg from '../assets/artist_headshots/lady_gaga.png'
+import badBunnyImg from '../assets/artist_headshots/bad_bunny.png'
+import brunoMarsImg from '../assets/artist_headshots/bruno_mars.png'
+import edSheeranImg from '../assets/artist_headshots/ed_sheeran.png'
+import dojaCatImg from '../assets/artist_headshots/doja_cat.png'
+import morganWallenImg from '../assets/artist_headshots/morgan_wallen.png'
+import myChemicalRomanceImg from '../assets/artist_headshots/my_chemical_romance.png'
+
 export const ARTISTS = [
   {
     id: 1,
     name: 'Ariana Grande',
     initials: 'AG',
+    headshot: arianaGrandeImg,
     gradient: 'linear-gradient(135deg, #e040fb, #7c3aed)',
     tour: 'Eternal Sunshine Tour',
     venue: 'Barclays Center',
@@ -14,6 +24,7 @@ export const ARTISTS = [
     id: 2,
     name: 'Lady Gaga',
     initials: 'LG',
+    headshot: ladyGagaImg,
     gradient: 'linear-gradient(135deg, #ff6b6b, #e040fb)',
     tour: 'The Mayhem Ball',
     venue: 'Madison Square Garden',
@@ -25,6 +36,7 @@ export const ARTISTS = [
     id: 3,
     name: 'Bad Bunny',
     initials: 'BB',
+    headshot: badBunnyImg,
     gradient: 'linear-gradient(135deg, #22c55e, #0ea5e9)',
     tour: 'DEBÍ TiRAR MáS FOToS World Tour',
     venue: 'MetLife Stadium',
@@ -36,6 +48,7 @@ export const ARTISTS = [
     id: 4,
     name: 'Bruno Mars',
     initials: 'BM',
+    headshot: brunoMarsImg,
     gradient: 'linear-gradient(135deg, #f59e0b, #E85D04)',
     tour: 'The Romantic Tour',
     venue: 'SoFi Stadium',
@@ -47,6 +60,7 @@ export const ARTISTS = [
     id: 5,
     name: 'Ed Sheeran',
     initials: 'ES',
+    headshot: edSheeranImg,
     gradient: 'linear-gradient(135deg, #E85D04, #dc2626)',
     tour: 'Mathematics Tour',
     venue: 'Gillette Stadium',
@@ -58,6 +72,8 @@ export const ARTISTS = [
     id: 6,
     name: 'Doja Cat',
     initials: 'DC',
+    headshot: dojaCatImg,
+    avatarPosition: 'center 85%',
     gradient: 'linear-gradient(135deg, #e040fb, #ff6b6b)',
     tour: 'ToWorld Tour',
     venue: 'United Center',
@@ -69,6 +85,7 @@ export const ARTISTS = [
     id: 7,
     name: 'Morgan Wallen',
     initials: 'MW',
+    headshot: morganWallenImg,
     gradient: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
     tour: "I'm the Problem Tour",
     venue: 'AT&T Stadium',
@@ -80,6 +97,7 @@ export const ARTISTS = [
     id: 8,
     name: 'My Chemical Romance',
     initials: 'MCR',
+    headshot: myChemicalRomanceImg,
     gradient: 'linear-gradient(135deg, #6b7280, #1f2937)',
     tour: 'The Black Parade 2026',
     venue: 'Madison Square Garden',

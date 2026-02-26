@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ArtistAvatar from './ArtistAvatar'
 
 export default function FeaturedCard({ artist, badge, onGetTickets }) {
   const [hovered, setHovered] = useState(false)
@@ -18,7 +19,7 @@ export default function FeaturedCard({ artist, badge, onGetTickets }) {
         transform: hovered ? 'translateY(-3px)' : 'none',
       }}
     >
-      {/* Gradient header band */}
+      {/* Gradient header band with avatar (Last.fm image or initials) */}
       <div
         style={{
           height: 110,
@@ -37,19 +38,18 @@ export default function FeaturedCard({ artist, badge, onGetTickets }) {
             background: 'linear-gradient(180deg, transparent 40%, rgba(18,18,31,0.7) 100%)',
           }}
         />
-        {/* Initials */}
-        <span
-          style={{
-            fontSize: '2.2rem',
-            fontWeight: 700,
-            color: 'rgba(255,255,255,0.9)',
-            textShadow: '0 2px 12px rgba(0,0,0,0.4)',
-            position: 'relative',
-            zIndex: 1,
-          }}
-        >
-          {artist.initials}
-        </span>
+        {/* Avatar: Last.fm image or initials fallback */}
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <ArtistAvatar
+            artistName={artist.name}
+            initials={artist.initials}
+            gradient={artist.gradient}
+            headshot={artist.headshot}
+            objectPosition={artist.avatarPosition}
+            size="large"
+            style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.4)' }}
+          />
+        </div>
 
         {/* Badge */}
         <div

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ArtistAvatar from './ArtistAvatar'
 
 export default function ArtistCard({ artist, onGetTickets }) {
   const [hovered, setHovered] = useState(false)
@@ -13,6 +14,7 @@ export default function ArtistCard({ artist, onGetTickets }) {
         borderRadius: 16,
         padding: '24px 20px',
         width: 220,
+        minHeight: 365,
         flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
@@ -23,38 +25,29 @@ export default function ArtistCard({ artist, onGetTickets }) {
       }}
     >
       {/* Avatar */}
-      <div
-        style={{
-          width: 90,
-          height: 90,
-          borderRadius: '50%',
-          background: artist.gradient,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '1.6rem',
-          fontWeight: 700,
-          color: '#fff',
-          marginBottom: 4,
-          boxShadow: `0 4px 24px rgba(0,0,0,0.4)`,
-          flexShrink: 0,
-        }}
-      >
-        {artist.initials}
+      <div style={{ marginBottom: 4 }}>
+        <ArtistAvatar
+          artistName={artist.name}
+          initials={artist.initials}
+          gradient={artist.gradient}
+          headshot={artist.headshot}
+          objectPosition={artist.avatarPosition}
+          size="small"
+        />
       </div>
 
-      {/* Name */}
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#fff', marginBottom: 3 }}>
+      {/* Name — fixed height for consistent card layout */}
+      <div style={{ textAlign: 'center', height: 100, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#fff', marginBottom: 3, lineHeight: 1.3 }}>
           {artist.name}
         </div>
-        <div style={{ fontSize: '0.75rem', color: '#7c3aed', fontWeight: 500, marginBottom: 4 }}>
+        <div style={{ fontSize: '0.75rem', color: '#7c3aed', fontWeight: 500, marginBottom: 4, lineHeight: 1.3 }}>
           {artist.tour}
         </div>
-        <div style={{ fontSize: '0.73rem', color: '#a0a0b8', marginBottom: 2 }}>
+        <div style={{ fontSize: '0.73rem', color: '#a0a0b8', marginBottom: 2, lineHeight: 1.35 }}>
           {artist.venue}, {artist.city}
         </div>
-        <div style={{ fontSize: '0.73rem', color: '#a0a0b8', marginBottom: 10 }}>
+        <div style={{ fontSize: '0.73rem', color: '#a0a0b8', lineHeight: 1.35 }}>
           {artist.dates}
         </div>
       </div>

@@ -1,8 +1,13 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import { getArtistAvatar, isLastFmConfigured } from './lastfm.js'
 
 const app = express()
+
+if (!isLastFmConfigured()) {
+  console.warn('[proxy] WARNING: LASTFM_API_KEY not set — artist avatars will fall back to initials')
+}
 
 // Allow any localhost origin (dev)
 app.use(cors({ origin: /^http:\/\/localhost(:\d+)?$/ }))
@@ -12,6 +17,45 @@ const TINYFISH_API_KEY = process.env.TINYFISH_API_KEY || process.env.VITE_TINYFI
 if (!TINYFISH_API_KEY) {
   console.warn('[proxy] WARNING: TINYFISH_API_KEY or VITE_TINYFISH_API_KEY not set in .env')
 }
+
+// Last.fm artist avatar — frontend calls
+app.get('/api/artist-avatar', async (req, res) => {
+  const name = req.query.name
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ error: 'Missing or empty name query parameter' })
+  }
+
+  try {
+    if (!isLastFmConfigured()) {
+      return res.json({ name: name.trim(), imageUrl: null, source: 'lastfm' })
+    }
+    const data = await getArtistAvatar(name)
+    if (!data) {
+      return res.status(404).json({ name: name.trim(), imageUrl: null, source: 'lastfm' })
+    }
+    res.json({ name: data.name, imageUrl: data.imageUrl, source: 'lastfm' })
+  } catch (err) {
+    if (err.notFound) {
+      return res.status(404).json({ name: name.trim(), imageUrl: null, source: 'lastfm' })
+    }
+    const isRateLimit = err.code === 29 || /rate limit/i.test(err.message || '')
+    if (isRateLimit) {
+      return res.status(429).json({
+        error: 'Last.fm rate limit. Please try again later.',
+        name: name.trim(),
+        imageUrl: null,
+        source: 'lastfm',
+      })
+    }
+    console.error('[lastfm] Route error:', err.message)
+    res.status(500).json({
+      error: err.message || 'Failed to fetch artist',
+      name: name.trim(),
+      imageUrl: null,
+      source: 'lastfm',
+    })
+  }
+})
 
 // Proxy endpoint — streams TinyFish SSE back to client
 app.post('/api/tinyfish', async (req, res) => {
@@ -79,7 +123,20 @@ app.post('/api/tinyfish', async (req, res) => {
 })
 
 const PORT = process.env.PORT || 3001
-app.listen(PORT, () => {
-  console.log(`[proxy] Server running on http://localhost:${PORT}`)
-  console.log(`[proxy] API key: ${TINYFISH_API_KEY ? TINYFISH_API_KEY.slice(0, 16) + '...' : 'NOT SET'}`)
-})
+
+function startServer(port) {
+  const server = app.listen(port, () => {
+    console.log(`[proxy] Server running on http://localhost:${port}`)
+    console.log(`[proxy] API key: ${TINYFISH_API_KEY ? TINYFISH_API_KEY.slice(0, 16) + '...' : 'NOT SET'}`)
+  })
+  server.on('error', err => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`[proxy] Port ${port} is in use. Kill the process: lsof -ti:${port} | xargs kill -9`)
+      console.error(`[proxy] Or run: npx kill-port ${port}`)
+      process.exit(1)
+    }
+    throw err
+  })
+}
+
+startServer(PORT)

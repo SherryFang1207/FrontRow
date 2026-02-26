@@ -50,12 +50,12 @@ export default function TrendingSection({ onGetTickets }) {
       {/* Scrollable row */}
       <div
         ref={scrollRef}
+        className="hide-scrollbar"
         style={{
           display: 'flex',
           gap: 16,
           overflowX: 'auto',
           padding: '4px 24px 16px',
-          scrollbarWidth: 'thin',
         }}
       >
         {ARTISTS.map(artist => (

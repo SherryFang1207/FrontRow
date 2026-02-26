@@ -120,6 +120,11 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 /* ── Scrollbar ────────────────────────────────── */
 ::-webkit-scrollbar       { height: 4px; width: 4px; }
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar { display: none; }
 ::-webkit-scrollbar-track  { background: #1a1a2e; }
 ::-webkit-scrollbar-thumb  { background: #7c3aed; border-radius: 2px; }
 
