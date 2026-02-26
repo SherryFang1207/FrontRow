@@ -113,7 +113,7 @@ const INIT_PLATFORM_META = {
   Viagogo:    { status: 'idle', streamUrl: null },
 }
 
-export default function ValueMode({ initialArtist }) {
+export default function ValueMode({ initialArtist, zipCode = '' }) {
   const addToast = useToast()
   const [query, setQuery] = useState(initialArtist ? initialArtist.name : '')
   const [searched, setSearched] = useState(false)
@@ -124,9 +124,14 @@ export default function ValueMode({ initialArtist }) {
   const [seatTypes, setSeatTypes] = useState(new Set(SEAT_TYPES))
   const [sortBy, setSortBy] = useState('value')
   const [filtersOpen, setFiltersOpen] = useState(true)
-  const [zipFilter, setZipFilter] = useState('')
+  const [zipFilter, setZipFilter] = useState(zipCode || '')
   const rangeRef = useRef(null)
   const abortControllersRef = useRef({})
+
+  // Sync zipFilter when NavBar zip changes
+  useEffect(() => {
+    setZipFilter(zipCode || '')
+  }, [zipCode])
 
   // Auto-search if initialArtist is set
   useEffect(() => {
@@ -211,8 +216,11 @@ export default function ValueMode({ initialArtist }) {
   function searchVividSeats(artistName) {
     const controller = new AbortController()
     abortControllersRef.current['VividSeats'] = controller
+    const zipContext = zipCode
+      ? `The user is located near US zip code ${zipCode} — prefer events in the same state or nearby region. `
+      : ''
     const goal =
-      `Go to https://www.vividseats.com and search for "${artistName}" concerts. ${SEARCH_SCOPE} Find the cheapest available ticket in the US, 2026. Return ONLY valid JSON with no extra text:
+      `Go to https://www.vividseats.com and search for "${artistName}" concerts. ${zipContext}${SEARCH_SCOPE} Find the cheapest available ticket in the US, 2026. Return ONLY valid JSON with no extra text:
 {
 "found": true,
 "section": "Section name or GA",
@@ -251,8 +259,11 @@ If no tickets found, return: {"found": false}`
   function searchViagogo(artistName) {
     const controller = new AbortController()
     abortControllersRef.current['Viagogo'] = controller
+    const zipContext = zipCode
+      ? `The user is located near US zip code ${zipCode} — prefer events in the same state or nearby region. `
+      : ''
     const goal =
-      `Go to https://www.viagogo.com and search for "${artistName}" tickets. ${SEARCH_SCOPE} Find the cheapest ticket available in the US, 2026. Return ONLY valid JSON with no extra text:
+      `Go to https://www.viagogo.com and search for "${artistName}" tickets. ${zipContext}${SEARCH_SCOPE} Find the cheapest ticket available in the US, 2026. Return ONLY valid JSON with no extra text:
 {
 "found": true,
 "section": "Section or category",
@@ -290,8 +301,11 @@ If no results, return: {"found": false}`
   function searchStubHub(artistName) {
     const controller = new AbortController()
     abortControllersRef.current['StubHub'] = controller
+    const zipContext = zipCode
+      ? `The user is located near US zip code ${zipCode} — prefer events in the same state or nearby region. `
+      : ''
     const goal =
-      `Go to https://www.stubhub.com and search for "${artistName}" concerts. ${SEARCH_SCOPE} Find the cheapest available listing in the US, 2026. Return ONLY valid JSON with no extra text:
+      `Go to https://www.stubhub.com and search for "${artistName}" concerts. ${zipContext}${SEARCH_SCOPE} Find the cheapest available listing in the US, 2026. Return ONLY valid JSON with no extra text:
 {
 "found": true,
 "section": "Section name",
@@ -746,6 +760,9 @@ If nothing found, return: {"found": false}`
               })}
             </div>
 
+            {/* Live AI sessions - auto shown when any platform is searching */}
+            <ValueLiveSessionsPanel platformMeta={platformMeta} />
+
             {/* Purple shimmer skeleton while searching */}
             {anySearching && filtered.length === 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1012,6 +1029,146 @@ If nothing found, return: {"found": false}`
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── ValueLiveSessionsPanel ─────────────────────────────────────────────────
+const VALUE_PLATFORMS = [
+  { name: 'VividSeats', shortName: 'VS', color: '#9b59b6' },
+  { name: 'StubHub',    shortName: 'SH', color: '#1dbf73' },
+  { name: 'Viagogo',    shortName: 'VG', color: '#ff6b35' },
+]
+
+function ValueLiveSessionsPanel({ platformMeta }) {
+  const isAnyActive = VALUE_PLATFORMS.some(
+    p => platformMeta[p.name]?.status === 'searching' || platformMeta[p.name]?.streamUrl
+  )
+  if (!isAnyActive) return null
+
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <div
+          style={{
+            width: 7, height: 7, borderRadius: '50%',
+            background: '#ef4444',
+            animation: 'pulse-dot 1s ease-in-out infinite',
+            flexShrink: 0,
+          }}
+        />
+        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#a0a0b8', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          Live AI Browser Sessions
+        </span>
+        <span style={{ fontSize: '0.62rem', color: '#6b6b8a' }}>Powered by TinyFish</span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {VALUE_PLATFORMS.map(platform => {
+          const meta = platformMeta[platform.name]
+          const isSearching = meta?.status === 'searching'
+          const streamUrl = meta?.streamUrl
+
+          return (
+            <div key={platform.name} style={{ flex: '1 1 200px', minWidth: 0 }}>
+              {/* Platform label */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5, paddingLeft: 2 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div
+                    style={{
+                      width: 20, height: 20, borderRadius: 4,
+                      background: `${platform.color}20`,
+                      border: `1px solid ${platform.color}40`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '0.58rem', fontWeight: 700, color: platform.color,
+                    }}
+                  >
+                    {platform.shortName}
+                  </div>
+                  <span style={{ fontSize: '0.72rem', color: '#a0a0b8' }}>{platform.name}</span>
+                </div>
+                {isSearching && (
+                  <span
+                    style={{
+                      fontSize: '0.58rem', background: 'rgba(239,68,68,0.85)',
+                      color: '#fff', padding: '2px 5px', borderRadius: 4, fontWeight: 700,
+                    }}
+                  >
+                    LIVE
+                  </span>
+                )}
+                {meta?.status === 'done' && <span style={{ fontSize: '0.62rem', color: '#22c55e' }}>✓</span>}
+                {meta?.status === 'error' && <span style={{ fontSize: '0.62rem', color: '#ef4444' }}>✕</span>}
+              </div>
+
+              {/* Iframe or placeholder */}
+              {streamUrl ? (
+                <div
+                  style={{
+                    borderRadius: 8, overflow: 'hidden',
+                    border: `1px solid ${platform.color}30`,
+                    background: '#000',
+                    position: 'relative',
+                  }}
+                >
+                  <iframe
+                    src={streamUrl}
+                    style={{ width: '100%', height: 190, border: 'none', display: 'block' }}
+                    title={`${platform.name} live session`}
+                    allow="autoplay"
+                  />
+                  <a
+                    href={streamUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      position: 'absolute', bottom: 5, right: 6,
+                      fontSize: '0.58rem', color: '#E85D04',
+                      background: 'rgba(10,10,18,0.8)',
+                      padding: '2px 5px', borderRadius: 4,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    ↗ Open
+                  </a>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    height: 190, borderRadius: 8,
+                    border: `1px solid ${isSearching ? platform.color + '25' : 'rgba(255,255,255,0.04)'}`,
+                    background: '#0a0a12',
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}
+                >
+                  {isSearching ? (
+                    <>
+                      <div style={{ display: 'flex', gap: 5 }}>
+                        {[0, 1, 2].map(i => (
+                          <div
+                            key={i}
+                            style={{
+                              width: 6, height: 6, borderRadius: '50%',
+                              background: platform.color,
+                              animation: `pulse-dot 1.2s ease-in-out ${i * 0.2}s infinite`,
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: '#6b6b8a' }}>Connecting...</div>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: '0.68rem', color: '#6b6b8a' }}>
+                      {meta?.status === 'done' ? '✓ Session complete' : meta?.status === 'error' ? '✕ Error' : '—'}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

@@ -52,7 +52,7 @@ function spawnConfetti(anchorEl) {
 
 const fmtPrice = (n) => (n != null && !isNaN(n) && n > 0) ? `$${n}` : '—'
 
-export default function SpeedMode() {
+export default function SpeedMode({ zipCode = '' }) {
   const addToast = useToast()
   const [form, setForm]           = useState({ event: '', date: '', qty: '2' })
   const [platforms, setPlatforms] = useState(initPlatforms)
@@ -91,8 +91,11 @@ export default function SpeedMode() {
   const SEARCH_SCOPE = 'IMPORTANT: Search scope is United States only. Filter to US events only — do NOT include UK, Europe, London, or other countries. Only include events in 2026 — filter out 2025 or 2027.'
 
   function makeGoal(platform, artistName) {
+    const zipContext = zipCode
+      ? `The user is located near US zip code ${zipCode} — prefer US events in the same state or nearby region. `
+      : ''
     if (platform.id === 'vividseats') {
-      return `Go to https://www.vividseats.com and search for "${artistName}" concerts. ${SEARCH_SCOPE} Find the cheapest available ticket in the US, 2026. Return ONLY valid JSON with no extra text:
+      return `Go to https://www.vividseats.com and search for "${artistName}" concerts. ${zipContext}${SEARCH_SCOPE} Find the cheapest available ticket in the US, 2026. Return ONLY valid JSON with no extra text:
 {
 "found": true,
 "section": "Section name or GA",
@@ -107,7 +110,7 @@ export default function SpeedMode() {
 If no tickets found, return: {"found": false}`
     }
     if (platform.id === 'stubhub') {
-      return `Go to https://www.stubhub.com and search for "${artistName}" concerts. ${SEARCH_SCOPE} Find the cheapest available listing in the US, 2026. Return ONLY valid JSON with no extra text:
+      return `Go to https://www.stubhub.com and search for "${artistName}" concerts. ${zipContext}${SEARCH_SCOPE} Find the cheapest available listing in the US, 2026. Return ONLY valid JSON with no extra text:
 {
 "found": true,
 "section": "Section name",
@@ -122,7 +125,7 @@ If no tickets found, return: {"found": false}`
 If nothing found, return: {"found": false}`
     }
     // viagogo
-    return `Go to https://www.viagogo.com and search for "${artistName}" tickets. ${SEARCH_SCOPE} Find the cheapest ticket available in the US, 2026. Return ONLY valid JSON with no extra text:
+    return `Go to https://www.viagogo.com and search for "${artistName}" tickets. ${zipContext}${SEARCH_SCOPE} Find the cheapest ticket available in the US, 2026. Return ONLY valid JSON with no extra text:
 {
 "found": true,
 "section": "Section or category",
@@ -375,6 +378,11 @@ If no results, return: {"found": false}`
           </button>
         )}
       </form>
+
+      {/* Live AI browser sessions - auto shown as soon as search starts */}
+      {searchState !== 'idle' && (
+        <LiveSessionsPanel platforms={PLATFORMS} platformStates={platforms} />
+      )}
 
       {/* Platform columns */}
       {searchState !== 'idle' && (
@@ -658,6 +666,127 @@ function PlatformCard({ platform, pState, isFound, isBlocked, isWinner, isFirst,
           <TinyFishLink streamUrl={pState.streamUrl} style={{ marginTop: 8 }} />
         </div>
       )}
+    </div>
+  )
+}
+
+// ── LiveSessionsPanel ──────────────────────────────────────────────────────
+function LiveSessionsPanel({ platforms, platformStates }) {
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <div
+          style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: '#ef4444',
+            animation: 'pulse-dot 1s ease-in-out infinite',
+            flexShrink: 0,
+          }}
+        />
+        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#a0a0b8', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          Live AI Browser Sessions
+        </span>
+        <span style={{ fontSize: '0.68rem', color: '#6b6b8a' }}>Powered by TinyFish</span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        {platforms.map(platform => {
+          const pState = platformStates[platform.id]
+          const isSearching = pState.status === 'searching'
+
+          return (
+            <div key={platform.id} style={{ flex: '1 1 240px', minWidth: 0 }}>
+              {/* Platform label row */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, paddingLeft: 2 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div
+                    style={{
+                      width: 22, height: 22, borderRadius: 5,
+                      background: `${platform.color}20`,
+                      border: `1px solid ${platform.color}40`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '0.6rem', fontWeight: 700, color: platform.color,
+                    }}
+                  >
+                    {platform.shortName}
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: '#a0a0b8', fontWeight: 500 }}>{platform.name}</span>
+                </div>
+                {isSearching && (
+                  <span
+                    style={{
+                      fontSize: '0.58rem', background: 'rgba(239,68,68,0.85)',
+                      color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 700, letterSpacing: '0.05em',
+                    }}
+                  >
+                    LIVE
+                  </span>
+                )}
+                {pState.status === 'found' && (
+                  <span style={{ fontSize: '0.62rem', color: '#22c55e' }}>✓ Found</span>
+                )}
+                {pState.status === 'blocked' && (
+                  <span style={{ fontSize: '0.62rem', color: '#ef4444' }}>✕ Blocked</span>
+                )}
+              </div>
+
+              {/* Iframe or placeholder */}
+              {pState.streamUrl ? (
+                <div
+                  style={{
+                    borderRadius: 10, overflow: 'hidden',
+                    border: `1px solid ${platform.color}35`,
+                    background: '#000',
+                    position: 'relative',
+                  }}
+                >
+                  <iframe
+                    src={pState.streamUrl}
+                    style={{ width: '100%', height: 230, border: 'none', display: 'block' }}
+                    title={`${platform.name} live session`}
+                    allow="autoplay"
+                  />
+                  <a
+                    href={pState.streamUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      position: 'absolute', bottom: 6, right: 8,
+                      fontSize: '0.6rem', color: '#E85D04',
+                      background: 'rgba(10,10,18,0.8)',
+                      padding: '2px 6px', borderRadius: 4,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    ↗ Open
+                  </a>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    height: 230, borderRadius: 10,
+                    border: `1px solid ${isSearching ? platform.color + '25' : 'rgba(255,255,255,0.05)'}`,
+                    background: '#0a0a12',
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center', gap: 10,
+                  }}
+                >
+                  {isSearching ? (
+                    <>
+                      <SearchingSpinner color={platform.color} />
+                      <div style={{ fontSize: '0.7rem', color: '#6b6b8a' }}>Connecting to live session...</div>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: '0.7rem', color: '#6b6b8a', textAlign: 'center', padding: '0 16px' }}>
+                      {pState.status === 'blocked' ? '❌ Session unavailable' : pState.status === 'found' ? '✓ Session complete' : '—'}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

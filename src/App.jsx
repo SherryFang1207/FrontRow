@@ -11,6 +11,16 @@ import { ToastProvider } from './context/ToastContext'
 export default function App() {
   const [activeMode, setActiveMode] = useState('home') // 'home' | 'speed' | 'value' | 'watch'
   const [selectedArtist, setSelectedArtist] = useState(null)
+  const [zipCode, setZipCode] = useState(() => localStorage.getItem('frontrow_zip') || '')
+
+  function handleZipChange(zip) {
+    setZipCode(zip)
+    if (zip) {
+      localStorage.setItem('frontrow_zip', zip)
+    } else {
+      localStorage.removeItem('frontrow_zip')
+    }
+  }
 
   function handleGetTickets(artist) {
     setSelectedArtist(artist)
@@ -32,12 +42,14 @@ export default function App() {
           activeMode={activeMode}
           onTabChange={handleTabChange}
           onLogoClick={() => setActiveMode('home')}
+          zipCode={zipCode}
+          onZipChange={handleZipChange}
         />
 
         <div style={{ paddingTop: 64 }}>
           {activeMode === 'home'  && <HomePage onGetTickets={handleGetTickets} onTabChange={handleTabChange} />}
-          {activeMode === 'speed' && <SpeedMode />}
-          {activeMode === 'value' && <ValueMode initialArtist={selectedArtist} />}
+          {activeMode === 'speed' && <SpeedMode zipCode={zipCode} />}
+          {activeMode === 'value' && <ValueMode initialArtist={selectedArtist} zipCode={zipCode} />}
           {activeMode === 'watch' && <WatchMode />}
         </div>
       </div>
