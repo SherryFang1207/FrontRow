@@ -34,7 +34,7 @@ export default function TooltipButton({ tooltip }) {
           className="tooltip-content"
           style={{
             position: 'absolute',
-            bottom: 'calc(100% + 10px)',
+            top: 'calc(100% + 10px)',
             left: '50%',
             /* translateX is baked into tooltip-content keyframe */
             background: '#1a1a2e',
@@ -54,18 +54,18 @@ export default function TooltipButton({ tooltip }) {
           }}
         >
           {tooltip}
-          {/* small arrow */}
+          {/* small arrow pointing up toward the button */}
           <div
             style={{
               position: 'absolute',
-              bottom: -5,
+              top: -5,
               left: '50%',
               transform: 'translateX(-50%) rotate(45deg)',
               width: 8,
               height: 8,
               background: '#1a1a2e',
-              borderRight: '1px solid rgba(255,255,255,0.12)',
-              borderBottom: '1px solid rgba(255,255,255,0.12)',
+              borderLeft: '1px solid rgba(255,255,255,0.12)',
+              borderTop: '1px solid rgba(255,255,255,0.12)',
             }}
           />
         </div>

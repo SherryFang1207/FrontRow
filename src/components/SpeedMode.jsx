@@ -52,9 +52,9 @@ function spawnConfetti(anchorEl) {
 
 const fmtPrice = (n) => (n != null && !isNaN(n) && n > 0) ? `$${n}` : '—'
 
-export default function SpeedMode({ zipCode = '' }) {
+export default function SpeedMode({ zipCode = '', onZipChange }) {
   const addToast = useToast()
-  const [form, setForm]           = useState({ event: '', date: '', qty: '2' })
+  const [form, setForm]           = useState({ event: '', date: '', qty: '2', zip: zipCode || '' })
   const [platforms, setPlatforms] = useState(initPlatforms)
   const [searchState, setSearchState]   = useState('idle')   // idle | searching | complete
   const [bookingState, setBookingState] = useState('idle')   // idle | processing | confirmed
@@ -91,8 +91,8 @@ export default function SpeedMode({ zipCode = '' }) {
   const SEARCH_SCOPE = 'IMPORTANT: Search scope is United States only. Filter to US events only — do NOT include UK, Europe, London, or other countries. Only include events in 2026 — filter out 2025 or 2027.'
 
   function makeGoal(platform, artistName) {
-    const zipContext = zipCode
-      ? `The user is located near US zip code ${zipCode} — prefer US events in the same state or nearby region. `
+    const zipContext = form.zip
+      ? `The user is located near US zip code ${form.zip} — prefer US events in the same state or nearby region. `
       : ''
     if (platform.id === 'vividseats') {
       return `Go to https://www.vividseats.com and search for "${artistName}" concerts. ${zipContext}${SEARCH_SCOPE} Find the cheapest available ticket in the US, 2026. Return ONLY valid JSON with no extra text:
@@ -198,7 +198,7 @@ If no results, return: {"found": false}`
 
   async function handleSearch(e) {
     e.preventDefault()
-    if (!form.event.trim()) return
+    if (!form.event.trim() || form.zip.length < 5) return
 
     cancelledRef.current = false
     Object.values(abortControllersRef.current).forEach(c => c.abort())
@@ -277,7 +277,7 @@ If no results, return: {"found": false}`
               backgroundClip: 'text',
             }}
           >
-            ⚡ Speed Mode
+            Speed Mode
           </h1>
           <TooltipButton tooltip={SPEED_TOOLTIP} />
         </div>
@@ -337,12 +337,28 @@ If no results, return: {"found": false}`
             ))}
           </select>
         </div>
+        <div style={{ flex: '0 0 120px' }}>
+          <label style={{ display: 'block', fontSize: '0.75rem', color: '#a0a0b8', marginBottom: 6 }}>
+            📍 Zip Code
+          </label>
+          <input
+            value={form.zip}
+            onChange={e => {
+              const z = e.target.value.replace(/\D/g, '').slice(0, 5)
+              setForm(f => ({ ...f, zip: z }))
+              if (z.length === 5) onZipChange?.(z)
+            }}
+            placeholder="e.g. 94579"
+            maxLength={5}
+            style={inputStyle}
+          />
+        </div>
         <button
           type="submit"
           className="btn-glow-purple"
-          disabled={searchState === 'searching'}
+          disabled={searchState === 'searching' || !form.event.trim() || form.zip.length < 5}
           style={{
-            background: searchState === 'searching'
+            background: (searchState === 'searching' || !form.event.trim() || form.zip.length < 5)
               ? 'rgba(124,58,237,0.4)'
               : 'linear-gradient(135deg, #7c3aed, #6d28d9)',
             border: 'none',
@@ -351,7 +367,7 @@ If no results, return: {"found": false}`
             fontWeight: 700,
             fontSize: '0.95rem',
             padding: '12px 28px',
-            cursor: searchState === 'searching' ? 'not-allowed' : 'pointer',
+            cursor: (searchState === 'searching' || !form.event.trim() || form.zip.length < 5) ? 'not-allowed' : 'pointer',
             flexShrink: 0,
             transition: 'all 0.2s ease',
           }}

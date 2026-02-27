@@ -42,15 +42,13 @@ export default function App() {
           activeMode={activeMode}
           onTabChange={handleTabChange}
           onLogoClick={() => setActiveMode('home')}
-          zipCode={zipCode}
-          onZipChange={handleZipChange}
         />
 
         <div style={{ paddingTop: 64 }}>
           {activeMode === 'home'  && <HomePage onGetTickets={handleGetTickets} onTabChange={handleTabChange} />}
-          {activeMode === 'speed' && <SpeedMode zipCode={zipCode} />}
-          {activeMode === 'value' && <ValueMode initialArtist={selectedArtist} zipCode={zipCode} />}
-          {activeMode === 'watch' && <WatchMode />}
+          {activeMode === 'speed' && <SpeedMode zipCode={zipCode} onZipChange={handleZipChange} />}
+          {activeMode === 'value' && <ValueMode initialArtist={selectedArtist} zipCode={zipCode} onZipChange={handleZipChange} />}
+          {activeMode === 'watch' && <WatchMode zipCode={zipCode} onZipChange={handleZipChange} />}
         </div>
       </div>
       <DebugPanel />

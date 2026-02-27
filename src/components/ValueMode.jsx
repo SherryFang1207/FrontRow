@@ -113,7 +113,7 @@ const INIT_PLATFORM_META = {
   Viagogo:    { status: 'idle', streamUrl: null },
 }
 
-export default function ValueMode({ initialArtist, zipCode = '' }) {
+export default function ValueMode({ initialArtist, zipCode = '', onZipChange }) {
   const addToast = useToast()
   const [query, setQuery] = useState(initialArtist ? initialArtist.name : '')
   const [searched, setSearched] = useState(false)
@@ -128,7 +128,7 @@ export default function ValueMode({ initialArtist, zipCode = '' }) {
   const rangeRef = useRef(null)
   const abortControllersRef = useRef({})
 
-  // Sync zipFilter when NavBar zip changes
+  // Sync zipFilter when zip prop changes
   useEffect(() => {
     setZipFilter(zipCode || '')
   }, [zipCode])
@@ -216,8 +216,8 @@ export default function ValueMode({ initialArtist, zipCode = '' }) {
   function searchVividSeats(artistName) {
     const controller = new AbortController()
     abortControllersRef.current['VividSeats'] = controller
-    const zipContext = zipCode
-      ? `The user is located near US zip code ${zipCode} — prefer events in the same state or nearby region. `
+    const zipContext = zipFilter
+      ? `The user is located near US zip code ${zipFilter} — prefer events in the same state or nearby region. `
       : ''
     const goal =
       `Go to https://www.vividseats.com and search for "${artistName}" concerts. ${zipContext}${SEARCH_SCOPE} Find the cheapest available ticket in the US, 2026. Return ONLY valid JSON with no extra text:
@@ -259,8 +259,8 @@ If no tickets found, return: {"found": false}`
   function searchViagogo(artistName) {
     const controller = new AbortController()
     abortControllersRef.current['Viagogo'] = controller
-    const zipContext = zipCode
-      ? `The user is located near US zip code ${zipCode} — prefer events in the same state or nearby region. `
+    const zipContext = zipFilter
+      ? `The user is located near US zip code ${zipFilter} — prefer events in the same state or nearby region. `
       : ''
     const goal =
       `Go to https://www.viagogo.com and search for "${artistName}" tickets. ${zipContext}${SEARCH_SCOPE} Find the cheapest ticket available in the US, 2026. Return ONLY valid JSON with no extra text:
@@ -301,8 +301,8 @@ If no results, return: {"found": false}`
   function searchStubHub(artistName) {
     const controller = new AbortController()
     abortControllersRef.current['StubHub'] = controller
-    const zipContext = zipCode
-      ? `The user is located near US zip code ${zipCode} — prefer events in the same state or nearby region. `
+    const zipContext = zipFilter
+      ? `The user is located near US zip code ${zipFilter} — prefer events in the same state or nearby region. `
       : ''
     const goal =
       `Go to https://www.stubhub.com and search for "${artistName}" concerts. ${zipContext}${SEARCH_SCOPE} Find the cheapest available listing in the US, 2026. Return ONLY valid JSON with no extra text:
@@ -361,7 +361,7 @@ If nothing found, return: {"found": false}`
 
   function handleSearch(e) {
     e.preventDefault()
-    if (!query.trim()) return
+    if (!query.trim() || zipFilter.length < 5) return
     triggerSearch(query)
   }
 
@@ -417,7 +417,7 @@ If nothing found, return: {"found": false}`
               backgroundClip: 'text',
             }}
           >
-            💎 Value Mode
+            Value Mode
           </h1>
           <TooltipButton tooltip={VALUE_TOOLTIP} />
         </div>
@@ -429,14 +429,14 @@ If nothing found, return: {"found": false}`
       {/* Search bar */}
       <form
         onSubmit={handleSearch}
-        style={{ display: 'flex', gap: 10, marginBottom: 28 }}
+        style={{ display: 'flex', gap: 10, marginBottom: 28, flexWrap: 'wrap' }}
       >
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="Artist, event, or venue..."
           style={{
-            flex: 1,
+            flex: '1 1 220px',
             background: '#12121f',
             border: '1px solid rgba(255,255,255,0.1)',
             borderRadius: 12,
@@ -446,19 +446,39 @@ If nothing found, return: {"found": false}`
             outline: 'none',
           }}
         />
+        <input
+          value={zipFilter}
+          onChange={e => {
+            const z = e.target.value.replace(/\D/g, '').slice(0, 5)
+            setZipFilter(z)
+            if (z.length === 5) onZipChange?.(z)
+          }}
+          placeholder="📍 Zip Code"
+          maxLength={5}
+          style={{
+            flex: '0 0 130px',
+            background: '#12121f',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 12,
+            color: '#fff',
+            padding: '12px 14px',
+            fontSize: '0.95rem',
+            outline: 'none',
+          }}
+        />
         <button
           type="submit"
           className="btn-glow-purple"
-          disabled={anySearching}
+          disabled={anySearching || !query.trim() || zipFilter.length < 5}
           style={{
-            background: anySearching ? 'rgba(124,58,237,0.4)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)',
+            background: (anySearching || !query.trim() || zipFilter.length < 5) ? 'rgba(124,58,237,0.4)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)',
             border: 'none',
             borderRadius: 12,
             color: '#fff',
             fontWeight: 700,
             fontSize: '0.95rem',
             padding: '12px 24px',
-            cursor: anySearching ? 'not-allowed' : 'pointer',
+            cursor: (anySearching || !query.trim() || zipFilter.length < 5) ? 'not-allowed' : 'pointer',
             flexShrink: 0,
           }}
         >

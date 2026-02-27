@@ -62,12 +62,13 @@ function buildPriceHistory(currentPrice, existingHistory) {
   return [...prior, { date: 'Today', price: currentPrice }]
 }
 
-export default function WatchMode() {
+export default function WatchMode({ zipCode = '', onZipChange }) {
   const addToast = useToast()
   const [watchList, setWatchList] = useState(WATCH_EVENTS)
   const [expandedId, setExpandedId] = useState(1) // first item open by default
   const [addInput, setAddInput] = useState('')
   const [addTarget, setAddTarget] = useState('')
+  const [localZip, setLocalZip] = useState(zipCode || '')
   const [checkingId, setCheckingId] = useState(null)
   const [checkProgress, setCheckProgress] = useState('')
   const [checkStreamUrl, setCheckStreamUrl] = useState(null)
@@ -78,7 +79,7 @@ export default function WatchMode() {
 
   function handleAdd(e) {
     e.preventDefault()
-    if (!addInput.trim()) return
+    if (!addInput.trim() || localZip.length < 5) return
     const price = 150 + Math.floor(Math.random() * 100)
     const target = addTarget ? Number(addTarget) : price - 20
     const newEvent = {
@@ -128,8 +129,9 @@ export default function WatchMode() {
     setCheckError(null)
 
     const SEARCH_SCOPE = 'IMPORTANT: Search scope is United States only. Filter to US events only. Only include events in 2026.'
+    const zipContext = localZip ? `The user is located near US zip code ${localZip} — prefer events in the same state or nearby region. ` : ''
     const goal =
-      `Go to https://www.stubhub.com and search for "${event.event}" concerts. ${SEARCH_SCOPE} Find the cheapest available listing in the US, 2026. Return ONLY valid JSON with no extra text:
+      `Go to https://www.stubhub.com and search for "${event.event}" concerts. ${zipContext}${SEARCH_SCOPE} Find the cheapest available listing in the US, 2026. Return ONLY valid JSON with no extra text:
 {
 "found": true,
 "section": "Section name",
@@ -206,7 +208,7 @@ If nothing found, return: {"found": false}`
               backgroundClip: 'text',
             }}
           >
-            👁 Watch Mode
+            Watch Mode
           </h1>
           <TooltipButton tooltip={WATCH_TOOLTIP} />
         </div>
@@ -253,19 +255,37 @@ If nothing found, return: {"found": false}`
             style={inputStyle}
           />
         </div>
+        <div style={{ flex: '0 1 120px' }}>
+          <label style={{ display: 'block', fontSize: '0.75rem', color: '#a0a0b8', marginBottom: 6 }}>
+            📍 Zip Code
+          </label>
+          <input
+            value={localZip}
+            onChange={e => {
+              const z = e.target.value.replace(/\D/g, '').slice(0, 5)
+              setLocalZip(z)
+              if (z.length === 5) onZipChange?.(z)
+            }}
+            placeholder="e.g. 94579"
+            maxLength={5}
+            style={inputStyle}
+          />
+        </div>
         <button
           type="submit"
+          disabled={!addInput.trim() || localZip.length < 5}
           style={{
             background: 'rgba(124,58,237,0.15)',
             border: '1.5px solid rgba(124,58,237,0.45)',
             borderRadius: 12,
-            color: '#c084fc',
+            color: (!addInput.trim() || localZip.length < 5) ? '#6b6b8a' : '#c084fc',
             fontWeight: 700,
             fontSize: '0.9rem',
             padding: '11px 20px',
-            cursor: 'pointer',
+            cursor: (!addInput.trim() || localZip.length < 5) ? 'not-allowed' : 'pointer',
             flexShrink: 0,
             transition: 'all 0.2s ease',
+            opacity: (!addInput.trim() || localZip.length < 5) ? 0.5 : 1,
           }}
         >
           + Watch
