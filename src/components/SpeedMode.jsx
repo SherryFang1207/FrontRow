@@ -3,6 +3,7 @@ import { runTinyfishAgent } from '../services/tinyfish'
 import { parseTicketResult } from '../utils/parseTicket'
 import { useToast } from '../context/ToastContext'
 import TooltipButton from './TooltipButton'
+import DemoPurchaseModal from './DemoPurchaseModal'
 
 const PLATFORMS = [
   { id: 'stubhub',    name: 'StubHub',    url: 'https://www.stubhub.com',    shortName: 'SH', color: '#1dbf73' },
@@ -52,6 +53,24 @@ function spawnConfetti(anchorEl) {
 
 const fmtPrice = (n) => (n != null && !isNaN(n) && n > 0) ? `$${n}` : '—'
 
+function getTicketSearchUrl(platformId, eventName) {
+  const encoded = encodeURIComponent(eventName || '')
+  switch (platformId) {
+    case 'stubhub':    return `https://www.stubhub.com/find/s/?q=${encoded}`
+    case 'vividseats': return `https://www.vividseats.com/search?searchTerm=${encoded}`
+    case 'viagogo':    return `https://www.viagogo.com/ww/Search?q=${encoded}`
+    default:           return '#'
+  }
+}
+
+function buildZipContext(location) {
+  if (!location || !location.trim()) return ''
+  const loc = location.trim()
+  const isZip = /^\d{5}$/.test(loc)
+  const locDesc = isZip ? `near US zip code ${loc}` : `in or near ${loc}, US`
+  return `The user is located ${locDesc} — prefer US events in the same state or nearby region. `
+}
+
 export default function SpeedMode({ zipCode = '', onZipChange }) {
   const addToast = useToast()
   const [form, setForm]           = useState({ event: '', date: '', qty: '2', zip: zipCode || '' })
@@ -61,10 +80,34 @@ export default function SpeedMode({ zipCode = '', onZipChange }) {
   const [orderId, setOrderId]     = useState(null)
   const [firstWinnerId, setFirstWinnerId] = useState(null)
   const [fadingIds, setFadingIds] = useState([])
+  const [demoModal, setDemoModal] = useState({ visible: false, pendingFn: null })
   const abortControllersRef = useRef({})
   const firstWinnerRef      = useRef(null)
   const bookBtnRef          = useRef(null)
   const cancelledRef        = useRef(false)
+
+  function openDemoModal(fn) {
+    setDemoModal({ visible: true, pendingFn: fn })
+  }
+  function handleModalConfirm() {
+    const fn = demoModal.pendingFn
+    setDemoModal({ visible: false, pendingFn: null })
+    fn?.()
+  }
+
+  function handleCardBuyNow(platform, result) {
+    addToast({ message: 'Securing your ticket...', borderColor: '#7c3aed', duration: 2000 })
+    setTimeout(() => {
+      const id = 'FR-' + Math.floor(10000000 + Math.random() * 90000000)
+      addToast({
+        message: `🎫 Ticket Secured! ${platform.name} — ${result.section} · Confirmation #${id}`,
+        borderColor: '#22c55e',
+        duration: 6000,
+        large: true,
+      })
+      spawnConfetti(null)
+    }, 2000)
+  }
 
   useEffect(() => {
     return () => {
@@ -91,9 +134,7 @@ export default function SpeedMode({ zipCode = '', onZipChange }) {
   const SEARCH_SCOPE = 'IMPORTANT: Search scope is United States only. Filter to US events only — do NOT include UK, Europe, London, or other countries. Only include events in 2026 — filter out 2025 or 2027.'
 
   function makeGoal(platform, artistName) {
-    const zipContext = form.zip
-      ? `The user is located near US zip code ${form.zip} — prefer US events in the same state or nearby region. `
-      : ''
+    const zipContext = buildZipContext(form.zip)
     if (platform.id === 'vividseats') {
       return `Go to https://www.vividseats.com and search for "${artistName}" concerts. ${zipContext}${SEARCH_SCOPE} Find the cheapest available ticket in the US, 2026. Return ONLY valid JSON with no extra text:
 {
@@ -198,7 +239,7 @@ If no results, return: {"found": false}`
 
   async function handleSearch(e) {
     e.preventDefault()
-    if (!form.event.trim() || form.zip.length < 5) return
+    if (!form.event.trim() || form.zip.trim().length < 2) return
 
     cancelledRef.current = false
     Object.values(abortControllersRef.current).forEach(c => c.abort())
@@ -337,28 +378,27 @@ If no results, return: {"found": false}`
             ))}
           </select>
         </div>
-        <div style={{ flex: '0 0 120px' }}>
+        <div style={{ flex: '0 0 150px' }}>
           <label style={{ display: 'block', fontSize: '0.75rem', color: '#a0a0b8', marginBottom: 6 }}>
-            📍 Zip Code
+            📍 Location
           </label>
           <input
             value={form.zip}
             onChange={e => {
-              const z = e.target.value.replace(/\D/g, '').slice(0, 5)
+              const z = e.target.value
               setForm(f => ({ ...f, zip: z }))
-              if (z.length === 5) onZipChange?.(z)
+              if (z.trim().length >= 2) onZipChange?.(z.trim())
             }}
-            placeholder="e.g. 94579"
-            maxLength={5}
+            placeholder="Zip or city name"
             style={inputStyle}
           />
         </div>
         <button
           type="submit"
           className="btn-glow-purple"
-          disabled={searchState === 'searching' || !form.event.trim() || form.zip.length < 5}
+          disabled={searchState === 'searching' || !form.event.trim() || form.zip.trim().length < 2}
           style={{
-            background: (searchState === 'searching' || !form.event.trim() || form.zip.length < 5)
+            background: (searchState === 'searching' || !form.event.trim() || form.zip.trim().length < 2)
               ? 'rgba(124,58,237,0.4)'
               : 'linear-gradient(135deg, #7c3aed, #6d28d9)',
             border: 'none',
@@ -367,7 +407,7 @@ If no results, return: {"found": false}`
             fontWeight: 700,
             fontSize: '0.95rem',
             padding: '12px 28px',
-            cursor: (searchState === 'searching' || !form.event.trim() || form.zip.length < 5) ? 'not-allowed' : 'pointer',
+            cursor: (searchState === 'searching' || !form.event.trim() || form.zip.trim().length < 2) ? 'not-allowed' : 'pointer',
             flexShrink: 0,
             transition: 'all 0.2s ease',
           }}
@@ -422,7 +462,9 @@ If no results, return: {"found": false}`
               const cardProps = {
                 platform, pState, isFound, isBlocked,
                 isWinner, isFirst, firstWinnerId,
+                eventName: form.event,
                 onTryArtist: (name) => setForm(f => ({ ...f, event: name })),
+                onBuyNow: (plt, result) => openDemoModal(() => handleCardBuyNow(plt, result)),
               }
 
               if (isFading && firstWinnerId) {
@@ -475,7 +517,7 @@ If no results, return: {"found": false}`
               </div>
               <button
                 ref={bookBtnRef}
-                onClick={handleBookNow}
+                onClick={() => openDemoModal(handleBookNow)}
                 className="btn-glow-orange"
                 style={{
                   background: 'linear-gradient(135deg, #E85D04, #c2410c)',
@@ -568,6 +610,11 @@ If no results, return: {"found": false}`
           </div>
         </div>
       )}
+
+      {/* Demo purchase modal */}
+      {demoModal.visible && (
+        <DemoPurchaseModal onConfirm={handleModalConfirm} />
+      )}
     </div>
   )
 }
@@ -575,7 +622,7 @@ If no results, return: {"found": false}`
 const QUICK_ARTISTS = ['Lady Gaga', 'Bad Bunny', 'Ed Sheeran']
 
 // ── PlatformCard sub-component ─────────────────────────────────────────────
-function PlatformCard({ platform, pState, isFound, isBlocked, isWinner, isFirst, firstWinnerId, onTryArtist }) {
+function PlatformCard({ platform, pState, isFound, isBlocked, isWinner, isFirst, firstWinnerId, eventName, onTryArtist, onBuyNow }) {
   return (
     <div
       className={isFirst && firstWinnerId ? 'winner-pulse-glow' : isFound ? 'found-glow' : ''}
@@ -679,6 +726,56 @@ function PlatformCard({ platform, pState, isFound, isBlocked, isWinner, isFirst,
           {pState.result.event_date && (
             <div style={{ marginTop: 2, fontSize: '0.72rem', color: '#6b6b8a' }}>{pState.result.event_date}</div>
           )}
+
+          {/* Action buttons */}
+          {pState.result.total > 0 && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <a
+                href={getTicketSearchUrl(platform.id, eventName)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 4,
+                  background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.18)',
+                  borderRadius: 9,
+                  color: '#a0a0b8',
+                  fontWeight: 600,
+                  fontSize: '0.78rem',
+                  padding: '8px 10px',
+                  cursor: 'pointer',
+                  textDecoration: 'none',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                View Ticket ↗
+              </a>
+              <button
+                onClick={() => onBuyNow(platform, pState.result)}
+                style={{
+                  flex: 1,
+                  background: isWinner
+                    ? 'linear-gradient(135deg, #E85D04, #c2410c)'
+                    : `linear-gradient(135deg, ${platform.color}, ${platform.color}cc)`,
+                  border: 'none',
+                  borderRadius: 9,
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: '0.78rem',
+                  padding: '8px 10px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Buy Now
+              </button>
+            </div>
+          )}
+
           <TinyFishLink streamUrl={pState.streamUrl} style={{ marginTop: 8 }} />
         </div>
       )}

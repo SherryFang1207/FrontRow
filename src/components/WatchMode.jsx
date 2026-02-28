@@ -13,6 +13,42 @@ import { runTinyfishAgent } from '../services/tinyfish'
 import { parseTicketResult } from '../utils/parseTicket'
 import { useToast } from '../context/ToastContext'
 import TooltipButton from './TooltipButton'
+import DemoPurchaseModal from './DemoPurchaseModal'
+
+function spawnConfetti(anchorEl) {
+  const rect = anchorEl?.getBoundingClientRect() ?? { left: window.innerWidth / 2, top: window.innerHeight / 2, width: 0, height: 0 }
+  const cx = rect.left + rect.width / 2
+  const cy = rect.top + rect.height / 2
+  const COLORS = ['#7c3aed', '#e040fb', '#22c55e', '#E85D04', '#fff', '#c084fc']
+  const container = document.createElement('div')
+  container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9998;overflow:hidden;'
+  document.body.appendChild(container)
+  for (let i = 0; i < 36; i++) {
+    const el = document.createElement('div')
+    const angle = (Math.random() * 360) * (Math.PI / 180)
+    const dist = 60 + Math.random() * 120
+    const tx = `translate(${cx + Math.cos(angle) * dist}px, ${cy + Math.sin(angle) * dist}px)`
+    const rot = `${Math.random() * 720 - 360}deg`
+    el.style.cssText = `
+      position:absolute; left:${cx}px; top:${cy}px;
+      width:${4 + Math.random() * 6}px; height:${4 + Math.random() * 6}px;
+      border-radius:${Math.random() > 0.5 ? '50%' : '2px'};
+      background:${COLORS[Math.floor(Math.random() * COLORS.length)]};
+      --tx:${tx}; --rot:${rot};
+    `
+    el.className = 'confetti-particle'
+    container.appendChild(el)
+  }
+  setTimeout(() => document.body.removeChild(container), 1000)
+}
+
+function buildZipContext(location) {
+  if (!location || !location.trim()) return ''
+  const loc = location.trim()
+  const isZip = /^\d{5}$/.test(loc)
+  const locDesc = isZip ? `near US zip code ${loc}` : `in or near ${loc}, US`
+  return `The user is located ${locDesc} — prefer US events in the same state or nearby region. `
+}
 
 const WATCH_TOOLTIP =
   '👁 Watch Mode monitors ticket prices over time and alerts you when they drop to your target. In this demo, no real notifications will be sent — but enter your email or phone to see how it would work.'
@@ -75,11 +111,36 @@ export default function WatchMode({ zipCode = '', onZipChange }) {
   const [checkError, setCheckError] = useState(null)
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
+  const [lastCheckResult, setLastCheckResult] = useState(null) // { eventId, ticket }
+  const [demoModal, setDemoModal] = useState({ visible: false, pendingFn: null })
   const abortRef = useRef(null)
+
+  function openDemoModal(fn) {
+    setDemoModal({ visible: true, pendingFn: fn })
+  }
+  function handleModalConfirm() {
+    const fn = demoModal.pendingFn
+    setDemoModal({ visible: false, pendingFn: null })
+    fn?.()
+  }
+
+  function handleWatchBuyNow(event, ticket) {
+    addToast({ message: 'Securing your ticket...', borderColor: '#7c3aed', duration: 2000 })
+    setTimeout(() => {
+      const id = 'FR-' + Math.floor(10000000 + Math.random() * 90000000)
+      addToast({
+        message: `🎫 Secured! ${event.event} · ${ticket.section || 'General'} · $${ticket.total} · Confirmation #${id}`,
+        borderColor: '#22c55e',
+        duration: 6000,
+        large: true,
+      })
+      spawnConfetti(null)
+    }, 2000)
+  }
 
   function handleAdd(e) {
     e.preventDefault()
-    if (!addInput.trim() || localZip.length < 5) return
+    if (!addInput.trim() || localZip.trim().length < 2) return
     const price = 150 + Math.floor(Math.random() * 100)
     const target = addTarget ? Number(addTarget) : price - 20
     const newEvent = {
@@ -129,7 +190,7 @@ export default function WatchMode({ zipCode = '', onZipChange }) {
     setCheckError(null)
 
     const SEARCH_SCOPE = 'IMPORTANT: Search scope is United States only. Filter to US events only. Only include events in 2026.'
-    const zipContext = localZip ? `The user is located near US zip code ${localZip} — prefer events in the same state or nearby region. ` : ''
+    const zipContext = buildZipContext(localZip)
     const goal =
       `Go to https://www.stubhub.com and search for "${event.event}" concerts. ${zipContext}${SEARCH_SCOPE} Find the cheapest available listing in the US, 2026. Return ONLY valid JSON with no extra text:
 {
@@ -168,6 +229,7 @@ If nothing found, return: {"found": false}`
               return { ...e, currentPrice: priceNum, trend, history, alert }
             })
           )
+          setLastCheckResult({ eventId: event.id, ticket })
         }
         setCheckingId(null)
         setCheckProgress('')
@@ -255,37 +317,36 @@ If nothing found, return: {"found": false}`
             style={inputStyle}
           />
         </div>
-        <div style={{ flex: '0 1 120px' }}>
+        <div style={{ flex: '0 1 150px' }}>
           <label style={{ display: 'block', fontSize: '0.75rem', color: '#a0a0b8', marginBottom: 6 }}>
-            📍 Zip Code
+            📍 Location
           </label>
           <input
             value={localZip}
             onChange={e => {
-              const z = e.target.value.replace(/\D/g, '').slice(0, 5)
+              const z = e.target.value
               setLocalZip(z)
-              if (z.length === 5) onZipChange?.(z)
+              if (z.trim().length >= 2) onZipChange?.(z.trim())
             }}
-            placeholder="e.g. 94579"
-            maxLength={5}
+            placeholder="Zip or city name"
             style={inputStyle}
           />
         </div>
         <button
           type="submit"
-          disabled={!addInput.trim() || localZip.length < 5}
+          disabled={!addInput.trim() || localZip.trim().length < 2}
           style={{
             background: 'rgba(124,58,237,0.15)',
             border: '1.5px solid rgba(124,58,237,0.45)',
             borderRadius: 12,
-            color: (!addInput.trim() || localZip.length < 5) ? '#6b6b8a' : '#c084fc',
+            color: (!addInput.trim() || localZip.trim().length < 2) ? '#6b6b8a' : '#c084fc',
             fontWeight: 700,
             fontSize: '0.9rem',
             padding: '11px 20px',
-            cursor: (!addInput.trim() || localZip.length < 5) ? 'not-allowed' : 'pointer',
+            cursor: (!addInput.trim() || localZip.trim().length < 2) ? 'not-allowed' : 'pointer',
             flexShrink: 0,
             transition: 'all 0.2s ease',
-            opacity: (!addInput.trim() || localZip.length < 5) ? 0.5 : 1,
+            opacity: (!addInput.trim() || localZip.trim().length < 2) ? 0.5 : 1,
           }}
         >
           + Watch
@@ -630,6 +691,50 @@ If nothing found, return: {"found": false}`
                       <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>{checkError}</span>
                     )}
                   </div>
+
+                  {/* View Ticket + Buy Now — shown after a successful price check */}
+                  {lastCheckResult?.eventId === event.id && lastCheckResult.ticket?.total > 0 && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                      <a
+                        href={`https://www.stubhub.com/find/s/?q=${encodeURIComponent(event.event)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          background: 'transparent',
+                          border: '1px solid rgba(255,255,255,0.18)',
+                          borderRadius: 10,
+                          color: '#a0a0b8',
+                          fontWeight: 600,
+                          fontSize: '0.82rem',
+                          padding: '9px 16px',
+                          cursor: 'pointer',
+                          textDecoration: 'none',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        View on StubHub ↗
+                      </a>
+                      <button
+                        onClick={e => { e.stopPropagation(); openDemoModal(() => handleWatchBuyNow(event, lastCheckResult.ticket)) }}
+                        style={{
+                          background: 'linear-gradient(135deg, #E85D04, #c2410c)',
+                          border: 'none',
+                          borderRadius: 10,
+                          color: '#fff',
+                          fontWeight: 700,
+                          fontSize: '0.82rem',
+                          padding: '9px 20px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        Buy Now — ${lastCheckResult.ticket.total}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -653,6 +758,11 @@ If nothing found, return: {"found": false}`
             Add events above to start tracking prices
           </div>
         </div>
+      )}
+
+      {/* Demo purchase modal */}
+      {demoModal.visible && (
+        <DemoPurchaseModal onConfirm={handleModalConfirm} />
       )}
     </div>
   )

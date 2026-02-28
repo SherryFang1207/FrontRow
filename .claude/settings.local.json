@@ -9,7 +9,9 @@
       "mcp__ide__getDiagnostics",
       "Bash(cd \"/Users/sherryfang/Documents/projects/tinyfish scraper agent/FrontRow\" && npm install 2>&1)",
       "Bash(echo killed:*)",
-      "Bash(cd \"/Users/sherryfang/Documents/projects/tinyfish scraper agent/FrontRow\" && npm run dev:all 2>&1)"
+      "Bash(cd \"/Users/sherryfang/Documents/projects/tinyfish scraper agent/FrontRow\" && npm run dev:all 2>&1)",
+      "Bash(node:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

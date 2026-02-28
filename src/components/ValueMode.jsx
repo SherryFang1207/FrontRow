@@ -3,6 +3,7 @@ import { runTinyfishAgent } from '../services/tinyfish'
 import { parseTicketResult } from '../utils/parseTicket'
 import { useToast } from '../context/ToastContext'
 import TooltipButton from './TooltipButton'
+import DemoPurchaseModal from './DemoPurchaseModal'
 
 function spawnConfetti(anchorEl) {
   const rect = anchorEl?.getBoundingClientRect() ?? { left: window.innerWidth / 2, top: window.innerHeight / 2, width: 0, height: 0 }
@@ -70,8 +71,30 @@ function inferZoneFromSection(section) {
   return 'general'
 }
 
+function isZipCode(s) {
+  return /^\d{5}$/.test((s || '').trim())
+}
+
+function buildZipContext(location) {
+  if (!location || !location.trim()) return ''
+  const loc = location.trim()
+  const locDesc = isZipCode(loc) ? `near US zip code ${loc}` : `in or near ${loc}, US`
+  return `The user is located ${locDesc} — prefer US events in the same state or nearby region. `
+}
+
+function getTicketSearchUrl(platformName, eventName) {
+  const encoded = encodeURIComponent(eventName || '')
+  switch (platformName) {
+    case 'StubHub':    return `https://www.stubhub.com/find/s/?q=${encoded}`
+    case 'VividSeats': return `https://www.vividseats.com/search?searchTerm=${encoded}`
+    case 'Viagogo':    return `https://www.viagogo.com/ww/Search?q=${encoded}`
+    default:           return '#'
+  }
+}
+
 function estimateMiles(zipA, zipB) {
   if (!zipA || !zipB || zipA.length < 3 || zipB.length < 3) return 800
+  if (!isZipCode(zipA)) return 400  // city name — moderate neutral distance
   if (zipA.slice(0, 3) === zipB.slice(0, 3)) return 8
   if (zipA[0] === zipB[0]) return 150
   return 800
@@ -125,8 +148,18 @@ export default function ValueMode({ initialArtist, zipCode = '', onZipChange }) 
   const [sortBy, setSortBy] = useState('value')
   const [filtersOpen, setFiltersOpen] = useState(true)
   const [zipFilter, setZipFilter] = useState(zipCode || '')
+  const [demoModal, setDemoModal] = useState({ visible: false, pendingFn: null })
   const rangeRef = useRef(null)
   const abortControllersRef = useRef({})
+
+  function openDemoModal(fn) {
+    setDemoModal({ visible: true, pendingFn: fn })
+  }
+  function handleModalConfirm() {
+    const fn = demoModal.pendingFn
+    setDemoModal({ visible: false, pendingFn: null })
+    fn?.()
+  }
 
   // Sync zipFilter when zip prop changes
   useEffect(() => {
@@ -193,7 +226,7 @@ export default function ValueMode({ initialArtist, zipCode = '', onZipChange }) 
     setPlatformProgress({ VividSeats: '', StubHub: '', Viagogo: '' })
   }
 
-  function handleBuyNow(result, btnEl) {
+  function handleBuyNow(result) {
     addToast({
       message: 'Securing your ticket...',
       borderColor: '#7c3aed',
@@ -207,7 +240,7 @@ export default function ValueMode({ initialArtist, zipCode = '', onZipChange }) 
         duration: 6000,
         large: true,
       })
-      spawnConfetti(btnEl)
+      spawnConfetti(null)
     }, 2000)
   }
 
@@ -216,9 +249,7 @@ export default function ValueMode({ initialArtist, zipCode = '', onZipChange }) 
   function searchVividSeats(artistName) {
     const controller = new AbortController()
     abortControllersRef.current['VividSeats'] = controller
-    const zipContext = zipFilter
-      ? `The user is located near US zip code ${zipFilter} — prefer events in the same state or nearby region. `
-      : ''
+    const zipContext = buildZipContext(zipFilter)
     const goal =
       `Go to https://www.vividseats.com and search for "${artistName}" concerts. ${zipContext}${SEARCH_SCOPE} Find the cheapest available ticket in the US, 2026. Return ONLY valid JSON with no extra text:
 {
@@ -259,9 +290,7 @@ If no tickets found, return: {"found": false}`
   function searchViagogo(artistName) {
     const controller = new AbortController()
     abortControllersRef.current['Viagogo'] = controller
-    const zipContext = zipFilter
-      ? `The user is located near US zip code ${zipFilter} — prefer events in the same state or nearby region. `
-      : ''
+    const zipContext = buildZipContext(zipFilter)
     const goal =
       `Go to https://www.viagogo.com and search for "${artistName}" tickets. ${zipContext}${SEARCH_SCOPE} Find the cheapest ticket available in the US, 2026. Return ONLY valid JSON with no extra text:
 {
@@ -301,9 +330,7 @@ If no results, return: {"found": false}`
   function searchStubHub(artistName) {
     const controller = new AbortController()
     abortControllersRef.current['StubHub'] = controller
-    const zipContext = zipFilter
-      ? `The user is located near US zip code ${zipFilter} — prefer events in the same state or nearby region. `
-      : ''
+    const zipContext = buildZipContext(zipFilter)
     const goal =
       `Go to https://www.stubhub.com and search for "${artistName}" concerts. ${zipContext}${SEARCH_SCOPE} Find the cheapest available listing in the US, 2026. Return ONLY valid JSON with no extra text:
 {
@@ -361,7 +388,7 @@ If nothing found, return: {"found": false}`
 
   function handleSearch(e) {
     e.preventDefault()
-    if (!query.trim() || zipFilter.length < 5) return
+    if (!query.trim() || zipFilter.trim().length < 2) return
     triggerSearch(query)
   }
 
@@ -386,11 +413,14 @@ If nothing found, return: {"found": false}`
       .sort((a, b) => sortBy === 'value' ? b.valueScore - a.valueScore : a.total - b.total)
   }, [scored, maxBudget, sortBy])
 
-  // Location badge: with zip = distance; without zip = venue + US
+  // Location badge: with zip = distance; city name = "Near X"; without = venue + US
   function getLocationBadge(result) {
-    if (zipFilter && zipFilter.length >= 3) {
-      const miles = estimateMiles(zipFilter, MOCK_VENUE_ZIP)
-      return `~${miles} mi away`
+    if (zipFilter && zipFilter.trim().length >= 2) {
+      if (isZipCode(zipFilter)) {
+        const miles = estimateMiles(zipFilter, MOCK_VENUE_ZIP)
+        return `~${miles} mi away`
+      }
+      return `Near ${zipFilter.trim()}`
     }
     const venue = result?.venue
     if (venue && venue !== 'Unknown venue' && !venue.toLowerCase().includes('unknown')) {
@@ -449,14 +479,13 @@ If nothing found, return: {"found": false}`
         <input
           value={zipFilter}
           onChange={e => {
-            const z = e.target.value.replace(/\D/g, '').slice(0, 5)
+            const z = e.target.value
             setZipFilter(z)
-            if (z.length === 5) onZipChange?.(z)
+            if (z.trim().length >= 2) onZipChange?.(z.trim())
           }}
-          placeholder="📍 Zip Code"
-          maxLength={5}
+          placeholder="📍 Zip or city"
           style={{
-            flex: '0 0 130px',
+            flex: '0 0 150px',
             background: '#12121f',
             border: '1px solid rgba(255,255,255,0.1)',
             borderRadius: 12,
@@ -469,16 +498,16 @@ If nothing found, return: {"found": false}`
         <button
           type="submit"
           className="btn-glow-purple"
-          disabled={anySearching || !query.trim() || zipFilter.length < 5}
+          disabled={anySearching || !query.trim() || zipFilter.trim().length < 2}
           style={{
-            background: (anySearching || !query.trim() || zipFilter.length < 5) ? 'rgba(124,58,237,0.4)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)',
+            background: (anySearching || !query.trim() || zipFilter.trim().length < 2) ? 'rgba(124,58,237,0.4)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)',
             border: 'none',
             borderRadius: 12,
             color: '#fff',
             fontWeight: 700,
             fontSize: '0.95rem',
             padding: '12px 24px',
-            cursor: (anySearching || !query.trim() || zipFilter.length < 5) ? 'not-allowed' : 'pointer',
+            cursor: (anySearching || !query.trim() || zipFilter.trim().length < 2) ? 'not-allowed' : 'pointer',
             flexShrink: 0,
           }}
         >
@@ -645,18 +674,16 @@ If nothing found, return: {"found": false}`
                   </div>
                 </div>
 
-                {/* Fix 3: Location filter at bottom of panel */}
+                {/* Location filter at bottom of panel */}
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 20 }}>
                   <div style={{ fontSize: '0.78rem', color: '#a0a0b8', marginBottom: 8 }}>
                     Location
                   </div>
                   <input
                     type="text"
-                    inputMode="numeric"
-                    maxLength={5}
                     value={zipFilter}
-                    onChange={e => setZipFilter(e.target.value.replace(/\D/g, ''))}
-                    placeholder="Zip Code"
+                    onChange={e => setZipFilter(e.target.value)}
+                    placeholder="Zip or city name"
                     style={{
                       width: '100%',
                       background: '#0a0a12',
@@ -949,29 +976,55 @@ If nothing found, return: {"found": false}`
                       )}
                     </div>
 
-                    {/* Buy button */}
+                    {/* Action buttons */}
                     {hasValidPrice(result) && (
-                    <button
-                      type="button"
-                      onClick={(e) => handleBuyNow(result, e.currentTarget)}
-                      style={{
-                        background: isTop
-                          ? 'linear-gradient(135deg, #7c3aed, #6d28d9)'
-                          : 'rgba(124,58,237,0.12)',
-                        border: isTop ? 'none' : '1px solid rgba(124,58,237,0.3)',
-                        borderRadius: 10,
-                        color: isTop ? '#fff' : '#c084fc',
-                        fontWeight: 600,
-                        fontSize: '0.82rem',
-                        padding: '9px 16px',
-                        cursor: 'pointer',
-                        flexShrink: 0,
-                        transition: 'all 0.2s ease',
-                        boxShadow: isTop ? '0 0 16px rgba(124,58,237,0.35)' : 'none',
-                      }}
-                    >
-                      Buy Now
-                    </button>
+                      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                        <a
+                          href={getTicketSearchUrl(result.platform, query)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            background: 'transparent',
+                            border: '1px solid rgba(255,255,255,0.18)',
+                            borderRadius: 10,
+                            color: '#a0a0b8',
+                            fontWeight: 600,
+                            fontSize: '0.78rem',
+                            padding: '9px 12px',
+                            cursor: 'pointer',
+                            textDecoration: 'none',
+                            whiteSpace: 'nowrap',
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          View ↗
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => openDemoModal(() => handleBuyNow(result))}
+                          style={{
+                            background: isTop
+                              ? 'linear-gradient(135deg, #7c3aed, #6d28d9)'
+                              : 'rgba(124,58,237,0.12)',
+                            border: isTop ? 'none' : '1px solid rgba(124,58,237,0.3)',
+                            borderRadius: 10,
+                            color: isTop ? '#fff' : '#c084fc',
+                            fontWeight: 600,
+                            fontSize: '0.78rem',
+                            padding: '9px 14px',
+                            cursor: 'pointer',
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap',
+                            transition: 'all 0.2s ease',
+                            boxShadow: isTop ? '0 0 16px rgba(124,58,237,0.35)' : 'none',
+                          }}
+                        >
+                          Buy Now
+                        </button>
+                      </div>
                     )}
                   </div>
                 )
@@ -1048,6 +1101,11 @@ If nothing found, return: {"found": false}`
             Search for an event to see AI-scored listings
           </div>
         </div>
+      )}
+
+      {/* Demo purchase modal */}
+      {demoModal.visible && (
+        <DemoPurchaseModal onConfirm={handleModalConfirm} />
       )}
     </div>
   )
