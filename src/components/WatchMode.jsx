@@ -11,6 +11,7 @@ import {
 import { WATCH_EVENTS } from '../data/mockData'
 import { runTinyfishAgent } from '../services/tinyfish'
 import { parseTicketResult } from '../utils/parseTicket'
+import { getCached, setCache, CACHE_TTL } from '../utils/cache'
 import { useToast } from '../context/ToastContext'
 import TooltipButton from './TooltipButton'
 import DemoPurchaseModal from './DemoPurchaseModal'
@@ -206,6 +207,29 @@ export default function WatchMode({ zipCode = '', onZipChange }) {
 }
 If nothing found, return: {"found": false}`
 
+    const watchCacheKey = `watch_${event.event}`
+
+    function applyPriceResult(ticket, fromCache = false) {
+      const priceNum = ticket?.total
+      if (priceNum != null && !isNaN(priceNum) && priceNum > 0) {
+        if (!fromCache) {
+          setCache('watch', watchCacheKey, ticket, CACHE_TTL.WATCH_PRICE)
+        }
+        setWatchList(prev =>
+          prev.map(e => {
+            if (e.id !== event.id) return e
+            const trend =
+              priceNum < e.currentPrice ? 'down' :
+              priceNum > e.currentPrice ? 'up' : 'stable'
+            const history = buildPriceHistory(priceNum, e.history)
+            const alert = priceNum <= e.targetPrice
+            return { ...e, currentPrice: priceNum, trend, history, alert }
+          })
+        )
+        setLastCheckResult({ eventId: event.id, ticket: { ...ticket, fromCache } })
+      }
+    }
+
     runTinyfishAgent({
       url: 'https://www.stubhub.com',
       goal,
@@ -216,31 +240,24 @@ If nothing found, return: {"found": false}`
       onStreamUrl: (url) => setCheckStreamUrl(url),
       onComplete: (resultJson) => {
         const ticket = parseTicketResult(resultJson)
-        const priceNum = ticket?.total
-        if (priceNum != null && !isNaN(priceNum) && priceNum > 0) {
-          setWatchList(prev =>
-            prev.map(e => {
-              if (e.id !== event.id) return e
-              const trend =
-                priceNum < e.currentPrice ? 'down' :
-                priceNum > e.currentPrice ? 'up' : 'stable'
-              const history = buildPriceHistory(priceNum, e.history)
-              const alert = priceNum <= e.targetPrice
-              return { ...e, currentPrice: priceNum, trend, history, alert }
-            })
-          )
-          setLastCheckResult({ eventId: event.id, ticket })
-        }
+        applyPriceResult(ticket)
         setCheckingId(null)
         setCheckProgress('')
         setCheckStreamUrl(null)
       },
       onError: () => {
-        setCheckError('Could not retrieve price.')
+        // Try cache fallback
+        const cached = getCached('watch', watchCacheKey)
+        if (cached) {
+          applyPriceResult(cached, true)
+          addToast({ message: 'Using cached price — live check failed', borderColor: '#f59e0b', duration: 3000 })
+        } else {
+          setCheckError('Could not retrieve price.')
+          setTimeout(() => setCheckError(null), 3000)
+        }
         setCheckingId(null)
         setCheckProgress('')
         setCheckStreamUrl(null)
-        setTimeout(() => setCheckError(null), 2000)
       },
     })
   }

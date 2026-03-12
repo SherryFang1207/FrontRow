@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { runTinyfishAgent } from '../services/tinyfish'
 import { parseTicketResult } from '../utils/parseTicket'
+import { getCached, setCache, CACHE_TTL } from '../utils/cache'
 import { useToast } from '../context/ToastContext'
 import TooltipButton from './TooltipButton'
 import DemoPurchaseModal from './DemoPurchaseModal'
@@ -246,6 +247,17 @@ export default function ValueMode({ initialArtist, zipCode = '', onZipChange }) 
 
   const SEARCH_SCOPE = 'IMPORTANT: Search scope is United States only. Filter to US events only — do NOT include UK, Europe, London, or other countries. Only include events in 2026 — filter out 2025 or 2027.'
 
+  function tryValueCacheFallback(platformName, artistName) {
+    const cacheKey = `value_${platformName}_${artistName}`
+    const cached = getCached('value', cacheKey)
+    if (cached) {
+      appendResults([{ ...cached, fromCache: true }], platformName)
+      setPlatformStatus(platformName, 'done')
+      return true
+    }
+    return false
+  }
+
   function searchVividSeats(artistName) {
     const controller = new AbortController()
     abortControllersRef.current['VividSeats'] = controller
@@ -277,12 +289,17 @@ If no tickets found, return: {"found": false}`
       onComplete: (resultJson) => {
         clearProgress('VividSeats')
         const parsed = parseTicketResult(resultJson)
-        if (parsed) appendResults([parsed], 'VividSeats')
+        if (parsed) {
+          setCache('value', `value_VividSeats_${artistName}`, parsed, CACHE_TTL.VALUE_RESULT)
+          appendResults([parsed], 'VividSeats')
+        }
         setPlatformStatus('VividSeats', 'done')
       },
       onError: () => {
         clearProgress('VividSeats')
-        setPlatformStatus('VividSeats', 'error')
+        if (!tryValueCacheFallback('VividSeats', artistName)) {
+          setPlatformStatus('VividSeats', 'error')
+        }
       },
     })
   }
@@ -317,12 +334,17 @@ If no results, return: {"found": false}`
       onComplete: (resultJson) => {
         clearProgress('Viagogo')
         const parsed = parseTicketResult(resultJson)
-        if (parsed) appendResults([parsed], 'Viagogo')
+        if (parsed) {
+          setCache('value', `value_Viagogo_${artistName}`, parsed, CACHE_TTL.VALUE_RESULT)
+          appendResults([parsed], 'Viagogo')
+        }
         setPlatformStatus('Viagogo', 'done')
       },
       onError: () => {
         clearProgress('Viagogo')
-        setPlatformStatus('Viagogo', 'error')
+        if (!tryValueCacheFallback('Viagogo', artistName)) {
+          setPlatformStatus('Viagogo', 'error')
+        }
       },
     })
   }
@@ -358,12 +380,17 @@ If nothing found, return: {"found": false}`
       onComplete: (resultJson) => {
         clearProgress('StubHub')
         const parsed = parseTicketResult(resultJson)
-        if (parsed) appendResults([parsed], 'StubHub')
+        if (parsed) {
+          setCache('value', `value_StubHub_${artistName}`, parsed, CACHE_TTL.VALUE_RESULT)
+          appendResults([parsed], 'StubHub')
+        }
         setPlatformStatus('StubHub', 'done')
       },
       onError: () => {
         clearProgress('StubHub')
-        setPlatformStatus('StubHub', 'error')
+        if (!tryValueCacheFallback('StubHub', artistName)) {
+          setPlatformStatus('StubHub', 'error')
+        }
       },
     })
   }
@@ -885,6 +912,7 @@ If nothing found, return: {"found": false}`
                       }}
                     >
                       {pc.short}
+                      {result.fromCache && <span title="Cached result"> 📦</span>}
                     </div>
 
                     {/* Section / Row */}

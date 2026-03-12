@@ -2,6 +2,9 @@
 const PROXY_ENDPOINT =
   (import.meta.env.VITE_API_BASE ?? 'http://localhost:3001') + '/api/tinyfish'
 
+// Timeout for the initial fetch connection (90s — TinyFish can be slow)
+const FETCH_TIMEOUT_MS = 90_000
+
 /**
  * Run a TinyFish automation agent via the local SSE proxy.
  *
@@ -30,6 +33,17 @@ export async function runTinyfishAgent({
   onComplete,
   onError,
 }) {
+  // Create a timeout abort if no external signal provided
+  const timeoutController = new AbortController()
+  const timeoutId = setTimeout(() => timeoutController.abort(), FETCH_TIMEOUT_MS)
+
+  // Combine external signal with timeout
+  const combinedSignal = signal
+    ? AbortSignal.any
+      ? AbortSignal.any([signal, timeoutController.signal])
+      : signal // fallback for older browsers
+    : timeoutController.signal
+
   let response
   try {
     response = await fetch(PROXY_ENDPOINT, {
@@ -41,15 +55,22 @@ export async function runTinyfishAgent({
         browser_profile: 'stealth',
         proxy_config: { enabled: true, country_code: 'US' },
       }),
-      signal,
+      signal: combinedSignal,
     })
   } catch (err) {
-    if (err.name === 'AbortError') return
+    clearTimeout(timeoutId)
+    if (err.name === 'AbortError') {
+      // Distinguish timeout from user cancel
+      if (signal?.aborted) return
+      onError?.(new Error('Request timed out'))
+      return
+    }
     onError?.(err)
     return
   }
 
   if (!response.ok) {
+    clearTimeout(timeoutId)
     onError?.(new Error(`Proxy HTTP ${response.status}`))
     return
   }
@@ -90,6 +111,7 @@ export async function runTinyfishAgent({
         } else if (t === 'PROGRESS') {
           onProgress?.(event.purpose ?? '')
         } else if (t === 'COMPLETE') {
+          clearTimeout(timeoutId)
           if (event.status === 'FAILED') {
             onError?.(new Error(event.error ?? event.message ?? 'Agent failed'))
             return
@@ -99,13 +121,33 @@ export async function runTinyfishAgent({
           }
           return
         } else if (t === 'ERROR') {
+          clearTimeout(timeoutId)
           onError?.(new Error(event.error ?? event.message ?? 'Agent error'))
           return
         }
       }
     }
   } catch (err) {
-    if (err.name === 'AbortError') return
+    if (err.name === 'AbortError') {
+      if (signal?.aborted) return
+      onError?.(new Error('Request timed out'))
+      return
+    }
     onError?.(err)
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
+/**
+ * Check if the proxy server is reachable.
+ */
+export async function checkProxyHealth() {
+  try {
+    const base = import.meta.env.VITE_API_BASE ?? 'http://localhost:3001'
+    const res = await fetch(base + '/api/health', { signal: AbortSignal.timeout(5000) })
+    return res.ok
+  } catch {
+    return false
   }
 }

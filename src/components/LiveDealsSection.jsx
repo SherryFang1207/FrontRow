@@ -1,12 +1,13 @@
-// PHASE4: replace hardcoded deals with real polling cache
+import { useState, useEffect } from 'react'
+import { getCached } from '../utils/cache'
 
 const PLATFORM_STYLE = {
   VividSeats: { short: 'VS', color: '#9b59b6', bg: 'rgba(155,89,182,0.18)' },
   StubHub:    { short: 'SH', color: '#1dbf73', bg: 'rgba(29,191,115,0.18)' },
+  Viagogo:    { short: 'VG', color: '#ff6b35', bg: 'rgba(255,107,53,0.18)' },
 }
 
-// PHASE4: replace with real polling cache
-const CACHED_DEALS = [
+const FALLBACK_DEALS = [
   {
     id: 'deal-1',
     artist: 'Ariana Grande',
@@ -57,6 +58,38 @@ const CACHED_DEALS = [
   },
 ]
 
+// Try to build deals from cached search results
+function buildDealsFromCache() {
+  const artists = ['Ariana Grande', 'Lady Gaga', 'Bad Bunny', 'Bruno Mars']
+  const platforms = ['VividSeats', 'StubHub', 'Viagogo']
+  const deals = []
+  for (const artist of artists) {
+    for (const platform of platforms) {
+      const cacheKey = `value_${platform}_${artist}`
+      const cached = getCached('value', cacheKey)
+      if (cached && cached.total > 0) {
+        deals.push({
+          id: `cache-${platform}-${artist}`,
+          artist,
+          tour: '',
+          platform,
+          section: cached.section || 'General',
+          row: cached.row || 'GA',
+          price: cached.price,
+          fees: cached.fees,
+          total: cached.total,
+          score: Math.min(99, Math.max(40, Math.round(80 - (cached.total / 10)))),
+          venue: cached.venue,
+          event_date: cached.event_date,
+          fromCache: true,
+        })
+        break // one deal per artist
+      }
+    }
+  }
+  return deals
+}
+
 function getScoreColor(score) {
   if (score >= 80) return '#22c55e'
   if (score >= 65) return '#f59e0b'
@@ -64,6 +97,17 @@ function getScoreColor(score) {
 }
 
 export default function LiveDealsSection({ onGetTickets }) {
+  const [deals, setDeals] = useState(FALLBACK_DEALS)
+  const [usingCache, setUsingCache] = useState(false)
+
+  useEffect(() => {
+    const cachedDeals = buildDealsFromCache()
+    if (cachedDeals.length > 0) {
+      setDeals(cachedDeals)
+      setUsingCache(true)
+    }
+  }, [])
+
   return (
     <section style={{ padding: '32px 24px 0' }}>
       {/* Section header */}
@@ -87,16 +131,16 @@ export default function LiveDealsSection({ onGetTickets }) {
               letterSpacing: '-0.01em',
             }}
           >
-            🔥 Live Deals — Updated Just Now
+            {usingCache ? '🔥 Recent Deals — From Your Searches' : '🔥 Live Deals — Featured Listings'}
           </h2>
           <p style={{ fontSize: '0.82rem', color: '#a0a0b8', margin: 0 }}>
-            Real ticket prices from StubHub &amp; VividSeats
+            {usingCache ? 'Based on cached results from your recent searches' : 'Real ticket prices from StubHub & VividSeats'}
           </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-          <span style={{ fontSize: '0.72rem', color: '#6b6b8a' }}>Refreshes every 30 min</span>
-          {/* PHASE4: replace with real cache timestamp */}
-          <span style={{ fontSize: '0.7rem', color: '#6b6b8a' }}>Last updated 2 min ago</span>
+          <span style={{ fontSize: '0.72rem', color: '#6b6b8a' }}>
+            {usingCache ? 'From cache (10 min TTL)' : 'Search to see live prices'}
+          </span>
         </div>
       </div>
 
@@ -110,7 +154,7 @@ export default function LiveDealsSection({ onGetTickets }) {
           scrollbarWidth: 'none',
         }}
       >
-        {CACHED_DEALS.map(deal => {
+        {deals.map(deal => {
           const ps = PLATFORM_STYLE[deal.platform] || { short: '?', color: '#a0a0b8', bg: 'rgba(255,255,255,0.1)' }
           const scoreColor = getScoreColor(deal.score)
 
@@ -137,7 +181,9 @@ export default function LiveDealsSection({ onGetTickets }) {
                   <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#fff', marginBottom: 3 }}>
                     {deal.artist}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#9b59b6' }}>{deal.tour}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#9b59b6' }}>
+                    {deal.tour || deal.venue || 'Concert'}
+                  </div>
                 </div>
                 <div
                   style={{

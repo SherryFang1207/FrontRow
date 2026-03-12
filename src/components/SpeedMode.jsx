@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { runTinyfishAgent } from '../services/tinyfish'
 import { parseTicketResult } from '../utils/parseTicket'
+import { getCached, setCache, CACHE_TTL } from '../utils/cache'
 import { useToast } from '../context/ToastContext'
 import TooltipButton from './TooltipButton'
 import DemoPurchaseModal from './DemoPurchaseModal'
@@ -180,11 +181,26 @@ If nothing found, return: {"found": false}`
 If no results, return: {"found": false}`
   }
 
+  function tryFallbackCache(platform, artistName) {
+    const cacheKey = `speed_${platform.id}_${artistName}`
+    const cached = getCached('speed', cacheKey)
+    if (cached) {
+      setPlatforms(prev => ({
+        ...prev,
+        [platform.id]: { ...prev[platform.id], status: 'found', result: { ...cached, fromCache: true } },
+      }))
+      markFirstWinner(platform.id, cached.section)
+      return true
+    }
+    return false
+  }
+
   async function searchPlatform(platform, artistName) {
     const controller = new AbortController()
     abortControllersRef.current[platform.id] = controller
 
     const goal = makeGoal(platform, artistName)
+    const cacheKey = `speed_${platform.id}_${artistName}`
 
     try {
       await runTinyfishAgent({
@@ -210,12 +226,16 @@ If no results, return: {"found": false}`
         onComplete: (resultJson) => {
           const parsed = parseTicketResult(resultJson)
           if (!parsed) {
-            setPlatforms(prev => ({
-              ...prev,
-              [platform.id]: { ...prev[platform.id], status: 'blocked' },
-            }))
+            if (!tryFallbackCache(platform, artistName)) {
+              setPlatforms(prev => ({
+                ...prev,
+                [platform.id]: { ...prev[platform.id], status: 'blocked' },
+              }))
+            }
             return
           }
+          // Cache successful result
+          setCache('speed', cacheKey, parsed, CACHE_TTL.SPEED_RESULT)
           setPlatforms(prev => ({
             ...prev,
             [platform.id]: { ...prev[platform.id], status: 'found', result: parsed },
@@ -223,17 +243,21 @@ If no results, return: {"found": false}`
           markFirstWinner(platform.id, parsed.section)
         },
         onError: () => {
-          setPlatforms(prev => ({
-            ...prev,
-            [platform.id]: { ...prev[platform.id], status: 'blocked' },
-          }))
+          if (!tryFallbackCache(platform, artistName)) {
+            setPlatforms(prev => ({
+              ...prev,
+              [platform.id]: { ...prev[platform.id], status: 'blocked' },
+            }))
+          }
         },
       })
     } catch {
-      setPlatforms(prev => ({
-        ...prev,
-        [platform.id]: { ...prev[platform.id], status: 'blocked' },
-      }))
+      if (!tryFallbackCache(platform, artistName)) {
+        setPlatforms(prev => ({
+          ...prev,
+          [platform.id]: { ...prev[platform.id], status: 'blocked' },
+        }))
+      }
     }
   }
 
@@ -725,6 +749,11 @@ function PlatformCard({ platform, pState, isFound, isBlocked, isWinner, isFirst,
           )}
           {pState.result.event_date && (
             <div style={{ marginTop: 2, fontSize: '0.72rem', color: '#6b6b8a' }}>{pState.result.event_date}</div>
+          )}
+          {pState.result.fromCache && (
+            <div style={{ marginTop: 6, fontSize: '0.65rem', color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 6, padding: '2px 8px', display: 'inline-block' }}>
+              📦 Cached result — search again for live data
+            </div>
           )}
 
           {/* Action buttons */}

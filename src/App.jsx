@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import NavBar from './components/NavBar'
 import HomePage from './components/HomePage'
 import SpeedMode from './components/SpeedMode'
@@ -7,9 +7,13 @@ import WatchMode from './components/WatchMode'
 import ParticleBackground from './components/ParticleBackground'
 import DebugPanel from './components/DebugPanel'
 import { ToastProvider } from './context/ToastContext'
+import { clearExpiredCache } from './utils/cache'
 
 export default function App() {
   const [activeMode, setActiveMode] = useState('home') // 'home' | 'speed' | 'value' | 'watch'
+
+  // Clean up expired cache entries on mount
+  useEffect(() => { clearExpiredCache() }, [])
   const [selectedArtist, setSelectedArtist] = useState(null)
   const [zipCode, setZipCode] = useState(() => localStorage.getItem('frontrow_zip') || '')
 
